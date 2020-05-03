@@ -3,11 +3,12 @@ import pygame
 from random import randint
 from time import sleep
 from gato import Gato
+from enemy import Enemy
 from text import Text
 
 pygame.init()
 
-class Gatinhos:
+class Rinha_de_Gato:
 	def __init__(self, width, height, title):
 		self.width = width
 		self.height = height
@@ -24,6 +25,7 @@ class Gatinhos:
 
 		self.clock = pygame.time.Clock()
 		self.running = True
+		self.game_running = True
 		self.FPS = 60
 		self.background = (100, 120, 100)
 		# frases
@@ -32,20 +34,21 @@ class Gatinhos:
 			 for line in file:
 				 self.frases.append(line)
 
-	def add_sec(self):
-		self.sec += 1
-		pygame.time.set_timer(pygame.NUMEVENTS-1, 1000)		# wait 1 sec
-
 	def prepare_battle(self):
-		# create enemy
-		self.enemy = Gato(self.width-self.gato.x, self.height-self.gato.y)
 		# disable movement
 		self.gato.move = False
+		self.gato.attack_ready = False
+		# create enemy
+		right_direction = True
+		if self.gato.x > self.width//2:	# player lado direito da tela
+			right_direction = False
+		self.enemy = Enemy(self.width-self.gato.x, self.height-self.gato.y, right_direction)
 		self.enemy.move = False
+		self.enemy.attack_ready = False
 		# say the lines
 		self.say_line()
 		# start fight
-		self.start_battle()
+		pygame.time.set_timer(pygame.USEREVENT+1, 2000)		# espera pra inciar
 
 	def say_line(self):
 		qtd = (len(self.frases)//2) -1				# qtd de frases
@@ -61,37 +64,30 @@ class Gatinhos:
 			# escrita do lado da cabeca personagem (mais longe do canto)
 			x += -130 if x > self.width//2 else 130
 			# textbox
-			# escrever letra por letra
-			# textos = select[j].split()
-			# for texto in textos:
-			# 	y += 10
-			# 	print(texto)
-			# 	self.temporarios.append(Text(x,
-			# 								y,
-			# 								texto,
-			# 								20,
-			# 								typing=True,
-			# 								duration=10))
 			self.temporarios.append(Text(x,
-											y,
-											select[j],	# texto
-											20,
-											typing=True,
-											duration=100*2))
+										y,
+										select[j][:-1],	# texto
+										20,
+										color=(0,0,50),
+										duration=self.FPS*2) )
 
 	def start_battle(self):
-		self.gato.move = True
-		self.enemy.move = True
+		# start fight
+		pygame.time.set_timer(pygame.USEREVENT+1, 0)		# espera pra inciar
+		self.temporarios.append(Text(self.width//2,
+									self.height//2,
+									"Lutem",
+									60,
+									color=(250,50,50),
+									duration=self.FPS*1))
+		self.gato.start_battle(self.enemy)
+		self.enemy.start_battle(self.gato)
 
 	def start(self):
-		self.tempo = 0 # testes
+		self.enemies_defeated = 0
 		self.temporarios = []
-		self.gato = Gato(150,self.height//2)
-		self.gatos = []	# teste
+		self.gato = Gato(150,self.height//2-15, True)
 		self.prepare_battle()
-
-		# for i in range(6):
-		# 	self.gatos.append(Gato(i*120, i*100))
 
 	def input(self, keys):
 		# Player Controls
@@ -108,26 +104,29 @@ class Gatinhos:
 			if self.gato.y < self.height:
 				self.gato.movement_update(0,1)
 		if keys[pygame.K_SPACE] and self.gato.is_attack_ready():	# attack
-			self.gato.attack(self.enemy)
+			self.gato.attack()
 		if keys[pygame.K_ESCAPE]:
-			# self.running = False
-			self.say_line()
+			# self.say_line()
+			self.running = False
 
 	def logic(self):
 		self.enemy.update()
 		self.gato.update()
+		if not self.gato.vivo:
+			self.running = False
+		if not self.enemy.vivo:
+			self.enemies_defeated += 1
+			self.gato.coletar_armadura()
+			self.prepare_battle()
 		self.credits.update()
-		for g in self.gatos:
-			g.update()
-		for t in self.temporarios:
+		for t in list(self.temporarios):
 			t.update()
+			if t.duration_ended(): self.temporarios.remove(t)
 
 	def render(self, window):
 		window.fill(self.background)		# background
 		self.enemy.render(window)
 		self.gato.render(window)
-		for g in self.gatos:
-			g.render(window)
 		for t in self.temporarios:
 			t.render(window)
 		self.credits.render(window)			# credits
@@ -142,9 +141,11 @@ class Gatinhos:
 		# textos
 		textos = ["Use 'wasd' ou as setas para se mover",
 				"Use 'espaco' para atacar",
-				"Cuidado"]
-		for i in range(3):
-			Text(x,200+i*50,textos[i],40,color=cor).render(window)
+				"Cada gato comeca com 3 armaduras",
+				"Porem voce coleta a armadura de inimigos derrotados",
+				"Batalhem ate acabarem suas armaduras"]
+		for i in range(5):
+			Text(x,200+i*50,textos[i],30,color=cor).render(window)
 		# creditos
 		self.credits.render(window)
 		pygame.display.update()
@@ -153,29 +154,61 @@ class Gatinhos:
 			event = pygame.event.wait()
 			if event.type == pygame.QUIT:	# kill screen
 				self.running = False
+				self.game_running = False
 				break
 			if event.type == pygame.KEYDOWN:
 				if event.key == pygame.K_g:	# start game
 					break
 
+	def end_screen(self):
+		window = self.win
+		x = self.width//2
+		cor = (50,100,200)
+		# titulo
+		Text(x,100,"Fim de jogo",50,color=(50,250,50)).render(window)
+		# textos
+		textos = ["Use 'G' para reiniciar",
+				"Voce derrotou "+str(self.enemies_defeated)]
+		for i in range(2):
+			Text(x,200+i*100,textos[i],40,color=cor).render(window)
+		# creditos
+		self.credits.render(window)
+		pygame.display.update()
+		# wait to player press 'g'
+		while True:
+			event = pygame.event.wait()
+			if event.type == pygame.QUIT:	# kill screen
+				self.running = False
+				self.game_running = False
+				break
+			if event.type == pygame.KEYDOWN:
+				if event.key == pygame.K_g:	# start game
+					self.running = True
+					break
+
 def main():
-	game = Gatinhos(800, 600, "Gatinhos")
+	game = Rinha_de_Gato(800, 600, "Rinha_de_Gato")
+
 	game.wait_to_start()		# wait to player press 'g'
-	game.start()				# start game
+	while game.game_running:
+		game.start()				# start game
+		# loop
+		while game.running:
+			game.clock.tick(game.FPS)
 
-	while game.running:
-		game.clock.tick(game.FPS)
+			for event in pygame.event.get():
+				if event.type == pygame.QUIT:
+					game.running = False
+					game.game_running = False
+				elif event.type == pygame.USEREVENT+1:
+					game.start_battle()
 
-		for event in pygame.event.get():
-			if event.type == pygame.QUIT:
-				game.running = False
-			elif event.type == pygame.NUMEVENTS-1:
-				game.add_sec()
-
-		game.input(pygame.key.get_pressed())
-		game.logic()
-		game.render(game.win)
-
+			game.input(pygame.key.get_pressed())
+			game.logic()
+			game.render(game.win)
+		# end screen
+		if game.game_running:
+			game.end_screen()
 
 if __name__ == "__main__":
 	main()
