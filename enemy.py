@@ -6,49 +6,89 @@ class Enemy(Gato):
 		Gato.__init__(self,x,y,right_direction)
 		self.min_dist_x = 170
 		self.min_dist_y = 40
+		# variacao ao atacar
+		self.var_knife_x = 72
+		self.var_knife_y = 65
 
-	# def  destruir_armadura(self):
-	# 	Gato.destruir_armadura(self)
-	# 	speed_x, speed_y = self.aproximar()
-	# 	speed_x *= -1
-	# 	speed_y *= -1
-	# 	for _ in range(15):
-	# 		Gato.movement_update(self, speed_x, speed_y)
-	# 		Gato.update(self)
-
-	def dist(self):
-		# distancia x,y
-		return (self.enemy.x - self.x, self.enemy.y - self.y)
+	def get_knife_pos_attack(self):
+		knife_x, knife_y = self.get_knife_pos()
+		# add var to knife pos
+		var_x = self.var_knife_x
+		if not self.right_direction: var_x *= -1
+		knife_x += var_x
+		knife_y += self.var_knife_y
+		# return
+		return(knife_x, knife_y)
 
 	def aproximar(self):
-		dist_x, dist_y = self.dist()
-		# calcular direcao como -1,0,1
-		speed_x = 0
-		if abs(dist_x) > self.min_dist_x:
-			speed_x = 1 if dist_x > 0 else -1
-		speed_y = 0
-		if abs(dist_y) > self.min_dist_y:
-			speed_y = 1 if dist_y > 0 else -1
-		return (speed_x, speed_y)
+		mov_left = False
+		mov_right = False
+		mov_top = False
+		mov_bot = False
+		mov_x = 0
+		mov_y = 0
+		#
+		mg = 5 # margem de erro
+		knife_x, knife_y = self.get_knife_pos_attack()
+		enemy = self.enemy
+		armor = enemy.conjunto_armaduras[-1]
+		# #
+		# if   knife_x < enemy.x + armor.left: mov_x = 1
+		# elif knife_x > enemy.x + armor.right: mov_x = -1
+		# elif knife_y < enemy.y + armor.top: mov_y = 1
+		# elif knife_y > enemy.y + armor.bot: mov_y = -1
+
+		if knife_x-mg < enemy.x+armor.left:
+			mov_right = True
+		if knife_x+mg > enemy.x+armor.right:
+			mov_left = True
+
+		if knife_y-mg < enemy.y+armor.top:
+			mov_bot = True
+		if knife_y+mg > enemy.y+armor.bot:
+			mov_top = True
+
+		if mov_right and mov_left: mov_x = 0
+		elif mov_right: mov_x = 1
+		elif mov_left: mov_x = -1
+
+		if mov_top and mov_bot: mov_y = 0
+		elif mov_top: mov_y = -1
+		elif mov_bot: mov_y = 1
+
+		print()
+		if mov_left:print('left')
+		if mov_right:print('right')
+		if mov_top:print('top')
+		if mov_bot:print('bot')
+
+		return (mov_x, mov_y)
+
+	def dentro_alcance(self):
+		knife_x, knife_y = self.get_knife_pos_attack()
+		# calcular
+		return self.inside_hitbox(knife_x, knife_y)
 
 # render
 	def update(self):
 		try:
-			dist_x, dist_y = self.dist()
+			# perto o suficiente para atacar
+			# if self.dentro_alcance() and self.attack_ready:
+			# 	print('atacar')
+			# 	# descubro o lado
+			# 	if dist_x > 0 and not self.right_direction:	# enimigo a direita
+			# 		Gato.movement_update(self, 1,0)
+			# 	elif dist_x < 0 and self.right_direction:	# enimigo a esquerda
+			# 		Gato.movement_update(self,-1,0)
+			# 	# atacar
+			# 	Gato.attack(self)
+			# else:
+
 			speed_x, speed_y = self.aproximar()
 			# se aproximar
 			Gato.movement_update(self, speed_x,speed_y)
-			# perto o suficiente
-			# print()
-			if abs(dist_x) <= self.min_dist_x and abs(dist_y) <= self.min_dist_y:
-				# pronto para atacar
-				if self.attack_ready:
-					dist_x, dist_y = self.dist()
-					# olhar pro lado certo
-					if dist_x > 0 and not self.right_direction:	# enimigo a direita
-						Gato.movement_update(self, 1,0)
-					elif dist_x < 0 and self.right_direction:	# enimigo a esquerda
-						Gato.movement_update(self,-1,0)
-					Gato.attack(self)
+			if self.dentro_alcance():
+				Gato.attack(self)
 		except: pass
+		# update
 		Gato.update(self)
